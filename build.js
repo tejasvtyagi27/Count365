@@ -48,7 +48,7 @@ const out = path.join(__dirname, 'dist');
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out);
 
-['index.html', 'style.css', 'script.js', 'db.js', 'auth.js'].forEach(f => {
+['index.html', 'style.css', 'script.js', 'db.js', 'routines.js', 'auth.js'].forEach(f => {
   fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
 });
 
