@@ -397,6 +397,30 @@
     $('rt').textContent   = pct + '%';
     $('tb').style.width   = pct + '%';
     $('cnt').textContent  = t.length ? `${done} of ${t.length} done` : '';
+    updateCarry();
+  }
+
+  /** Unfinished tasks from the previous day that this day does not have yet */
+  function carryTexts() {
+    if (!openDay || openDay.i === 0 || getState(openDay.k) === 'past') return [];
+    const seen = new Set(getTasks(openDay.k).map(x => x.t));
+    const out  = [];
+    getTasks(days[openDay.i - 1].k).forEach(x => {
+      if (!x.done && !seen.has(x.t)) { seen.add(x.t); out.push(x.t); }
+    });
+    return out;
+  }
+
+  /** Show or hide the "carry over" button for the open day */
+  function updateCarry() {
+    const btn   = $('carry');
+    const texts = carryTexts();
+    if (!texts.length) { btn.hidden = true; return; }
+    const prev = days[openDay.i - 1].d;
+    btn.textContent = 'Carry over ' + texts.length + ' unfinished task'
+      + (texts.length > 1 ? 's' : '') + ' from '
+      + prev.getDate() + ' ' + MONTH_NAMES[prev.getMonth()].slice(0, 3);
+    btn.hidden = false;
   }
 
   /** Remove the empty-state placeholder if any real tasks exist */
@@ -426,7 +450,7 @@
 
   /** Build a single task list item */
   function buildTaskItem(taskObj, taskArray, delay) {
-    const li = mk('li', taskObj.done ? 'done' : '');
+    const li = mk('li', (taskObj.done ? 'done' : '') + (taskObj.rid ? ' rep' : ''));
 
     if (delay !== undefined) {
       li.style.animationDelay = delay + 'ms';
@@ -640,6 +664,59 @@
   });
 
   /* ----------------------------------------------------------
+     11b. CARRY OVER UNFINISHED TASKS + REPEATING TASKS (local state)
+  ---------------------------------------------------------- */
+
+  $('carry').addEventListener('click', async () => {
+    const day   = openDay;
+    const texts = carryTexts();
+    if (!day || !texts.length) return;
+
+    const btn = $('carry');
+    btn.disabled = true;
+    try {
+      const rows = await DB.addMany(texts.map(text => ({ day: day.k, text })));
+      addTasksLocal(rows);
+      if (openDay === day) fillSheet();
+    } catch (err) {
+      console.error(err);
+      showToast('Could not carry over the tasks. Please try again.');
+    }
+    btn.disabled = false;
+    if (openDay) updateCarry();
+  });
+
+  /** Add rows returned by Supabase to local data and repaint their cells */
+  function addTasksLocal(rows) {
+    const byKey   = new Map(days.map(d => [d.k, d]));
+    const touched = new Set();
+    rows.forEach(r => {
+      const day = byKey.get(r.day);
+      if (!day) return;                       // outside the year shown (appears next year)
+      (data[r.day] = data[r.day] || []).push({
+        id: r.id, t: r.text, done: r.done, rid: r.routine_id || null
+      });
+      touched.add(day);
+    });
+    touched.forEach(paintCell);
+    updateStats();
+  }
+
+  /** After deleting a repeating task: drop its tasks from fromKey onwards */
+  function removeRoutineLocal(id, fromKey) {
+    days.forEach(day => {
+      const arr = data[day.k];
+      if (!arr) return;
+      const kept = arr.filter(t => t.rid !== id || day.k < fromKey);
+      kept.forEach(t => { if (t.rid === id) t.rid = null; });
+      if (kept.length === arr.length) return;
+      if (kept.length) data[day.k] = kept; else delete data[day.k];
+      paintCell(day);
+    });
+    updateStats();
+  }
+
+  /* ----------------------------------------------------------
      12. TOAST NOTIFICATIONS
   ---------------------------------------------------------- */
 
@@ -692,7 +769,13 @@
       if (openDay) closeSheet();
       data = map || {};
       buildGrid(0);
-    }
+    },
+    /** Add freshly saved rows to the screen (used by routines.js) */
+    addTasks(rows) { addTasksLocal(rows); },
+    /** Remove a repeating task's tasks from a date onwards (used by routines.js) */
+    removeRoutineTasks(id, fromKey) { removeRoutineLocal(id, fromKey); },
+    /** Today's date as "YYYY-MM-DD" */
+    today() { return todayKey; }
   };
 
   tick();
