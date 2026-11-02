@@ -11,10 +11,20 @@ Static site (HTML/CSS/JS) hosted on Vercel, data and auth on Supabase.
 | `script.js` | The app: month/year views, day sheet, tasks |
 | `db.js` | Reads and writes tasks in Supabase |
 | `auth.js` | Sign up, log in, log out, session handling |
+| `routines.js` | The "Repeating tasks" panel |
 | `build.js` | Reads your keys from environment variables and builds `dist/` |
 | `.env.example` | Template for your local `.env` (the real `.env` is never committed) |
 | `supabase/schema.sql` | Database table and security rules |
 | `vercel.json`, `package.json` | Vercel build settings |
+
+## Features
+
+- **Carry over:** open today or a future day. If the day before has unfinished tasks, a button offers to copy them in. The original day keeps its own record.
+- **Repeating tasks:** the "Repeating tasks" button in the sidebar lets you pick a task, a start and end date, and the weekdays. One task is created for every matching day, and you can tick each one separately.
+  Deleting a repeating task removes its tasks from today onwards and keeps past days.
+  The site shows the current year, so days after 31 December are saved now and appear when the new year starts.
+
+**Updating an existing project:** run the new `supabase/schema.sql` in the Supabase SQL Editor again. It is safe to repeat and adds the `routines` table.
 
 ## About the keys
 
